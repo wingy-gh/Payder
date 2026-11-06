@@ -1,0 +1,490 @@
+import { api } from "./api.js";
+import { escapeHtml, icon, money } from "./icons.js";
+import { cardColor, renderCreate } from "./components/create.js";
+import { renderFeed } from "./components/feed.js";
+import { renderProfile } from "./components/profile.js";
+import { renderStats } from "./components/stats.js";
+
+const root = document.getElementById("root");
+const SCREENS = ["feed", "profile", "stats", "create"];
+const DEFAULT_MENU = [
+  { id: "feed", label: "Карточки", icon: "cards" },
+  { id: "profile", label: "Профиль", icon: "user" },
+  { id: "stats", label: "Статистика", icon: "chart" },
+  { id: "create", label: "Создать", icon: "plus" },
+];
+
+const state = {
+  screen: screenFromHash(),
+  menu: DEFAULT_MENU,
+  banks: ["Т-Банк", "Сбер", "Альфа-Банк", "ВТБ"],
+  categories: ["Образование", "Техника", "Здоровье", "Доброе дело", "Творчество", "Другое"],
+  colors: {},
+  cards: [],
+  index: 0,
+  dragX: 0,
+  pointerStart: null,
+  animating: false,
+  helped: null,
+  toast: "",
+  toastTimer: 0,
+  profile: null,
+  editing: false,
+  stats: null,
+  statsLoading: false,
+  period: "month",
+  form: { amount: "", purpose: "", category: "Образование" },
+  previewId: `PD-${Math.floor(10000 + Math.random() * 89999)}`,
+  loading: true,
+  error: "",
+  formError: "",
+  submitting: false,
+};
+
+function screenFromHash() {
+  const id = window.location.hash.replace("#", "");
+  return SCREENS.includes(id) ? id : "feed";
+}
+
+function logo() {
+  return `<div class="logo" aria-label="Payder"><span class="logo-mark">P</span><span>Payder</span></div>`;
+}
+
+function renderModal() {
+  if (!state.helped) return "";
+  const item = state.helped;
+  return `
+    <div class="modal-backdrop" data-close-modal>
+      <div class="requisites-modal" data-modal-card>
+        <button class="modal-close" data-close-modal aria-label="Закрыть">${icon("close", 20)}</button>
+        <div class="success-icon">${icon("check", 27)}</div>
+        <p class="eyebrow">ВЫ ВЫБРАЛИ ПОМОЧЬ</p>
+        <h2>${escapeHtml(item.author)}</h2>
+        <p class="modal-copy">Переведите любую комфортную сумму по реквизитам автора.</p>
+        <div class="bank-row">
+          <div class="bank-logo">${icon("wallet", 22)}</div>
+          <div>
+            <span>${escapeHtml(item.bank)}</span>
+            <strong>${escapeHtml(item.requisites)}</strong>
+          </div>
+          <button data-copy="${escapeHtml(item.requisites)}" aria-label="Скопировать">${icon("copy", 20)}</button>
+        </div>
+        <button class="primary-button full" data-copy="${escapeHtml(item.requisites)}">Скопировать реквизиты</button>
+        <button class="text-button" data-close-modal>Продолжить смотреть</button>
+      </div>
+    </div>`;
+}
+
+function render() {
+  const initials = state.profile?.initials || "АМ";
+  const firstName = (state.profile?.name || "Алексей").split(" ")[0];
+  const username = state.profile?.username || "alexmoroz";
+  let screenHtml = "";
+  if (state.screen === "feed") {
+    screenHtml = renderFeed({
+      cards: state.cards,
+      index: state.index,
+      dragX: state.dragX,
+      dragging: state.pointerStart !== null,
+      animating: state.animating,
+      error: state.error,
+      loading: state.loading,
+    });
+  } else if (state.screen === "profile") {
+    screenHtml = renderProfile({
+      profile: state.profile,
+      editing: state.editing,
+      banks: state.banks,
+      error: state.formError,
+    });
+  } else if (state.screen === "stats") {
+    screenHtml = renderStats({
+      stats: state.stats,
+      period: state.period,
+      loading: state.statsLoading,
+      error: state.error,
+    });
+  } else {
+    screenHtml = renderCreate({
+      form: state.form,
+      previewId: state.previewId,
+      categories: state.categories,
+      colors: state.colors,
+      profile: state.profile,
+      error: state.formError,
+      submitting: state.submitting,
+    });
+  }
+
+  root.innerHTML = `
+    <div class="app-shell">
+      <aside class="sidebar">
+        ${logo()}
+        <nav class="side-nav" aria-label="Основная навигация">
+          ${state.menu
+            .map(
+              (item) => `
+            <button class="nav-item ${state.screen === item.id ? "active" : ""}" data-nav="${item.id}">
+              <span class="nav-icon">${icon(item.icon)}</span>
+              <span>${item.label}</span>
+            </button>`
+            )
+            .join("")}
+        </nav>
+        <button class="sidebar-card" data-nav="profile" type="button">
+          <div class="mini-avatar">${escapeHtml(initials)}</div>
+          <div>
+            <strong>${escapeHtml(firstName)}</strong>
+            <span>@${escapeHtml(username)}</span>
+          </div>
+          ${icon("arrow", 18)}
+        </button>
+      </aside>
+      <main class="main">
+        <header class="mobile-header">
+          ${logo()}
+          <button class="mobile-avatar" data-nav="profile">${escapeHtml(initials)}</button>
+        </header>
+        ${screenHtml}
+      </main>
+      <nav class="bottom-nav" aria-label="Мобильная навигация">
+        ${state.menu
+          .map(
+            (item) => `
+          <button class="${state.screen === item.id ? "active" : ""}" data-nav="${item.id}" aria-label="${item.label}">
+            ${icon(item.icon, 21)}
+            <span>${item.label}</span>
+          </button>`
+          )
+          .join("")}
+      </nav>
+      ${renderModal()}
+      ${state.toast ? `<div class="toast">${icon("check", 18)}${escapeHtml(state.toast)}</div>` : ""}
+    </div>`;
+
+  bindCardGestures();
+}
+
+function go(screen) {
+  if (!SCREENS.includes(screen)) return;
+  state.screen = screen;
+  state.formError = "";
+  if (window.location.hash.replace("#", "") !== screen) {
+    window.location.hash = screen;
+  }
+  render();
+  if (screen === "stats") {
+    loadStats();
+  }
+}
+
+function showToast(message) {
+  state.toast = message;
+  render();
+  window.clearTimeout(state.toastTimer);
+  state.toastTimer = window.setTimeout(() => {
+    state.toast = "";
+    render();
+  }, 2200);
+}
+
+async function copyText(value) {
+  try {
+    await navigator.clipboard.writeText(value);
+    showToast("Реквизиты скопированы");
+  } catch {
+    showToast(`Реквизиты: ${value}`);
+  }
+}
+
+async function swipe(direction) {
+  if (state.animating || !state.cards.length || state.screen !== "feed") return;
+  const current = state.cards[state.index % state.cards.length];
+  state.animating = true;
+  state.dragX = direction === "left" ? -700 : 700;
+  render();
+  window.setTimeout(async () => {
+    if (direction === "right") {
+      try {
+        state.helped = await api.helpCard(current.id);
+      } catch (error) {
+        showToast(error.message);
+      }
+    }
+    state.index += 1;
+    state.dragX = 0;
+    state.animating = false;
+    render();
+    trackCurrentView();
+  }, 260);
+}
+
+function bindCardGestures() {
+  const card = root.querySelector("[data-card]");
+  if (!card) return;
+  const applyDrag = () => {
+    const rotate = Math.max(-12, Math.min(12, state.dragX / 28));
+    card.style.transform = `translateX(${state.dragX}px) rotate(${rotate}deg)`;
+    card.classList.toggle("dragging", state.pointerStart !== null);
+    let stamp = card.querySelector(".swipe-stamp");
+    const label = state.dragX > 40 ? "ПОМОЧЬ" : state.dragX < -40 ? "ДАЛЬШЕ" : "";
+    if (label) {
+      if (!stamp) {
+        stamp = document.createElement("div");
+        card.prepend(stamp);
+      }
+      stamp.className = `swipe-stamp ${state.dragX > 0 ? "help" : "skip"}`;
+      stamp.textContent = label;
+    } else if (stamp) {
+      stamp.remove();
+    }
+  };
+  card.addEventListener("pointerdown", (event) => {
+    if (state.animating) return;
+    card.setPointerCapture(event.pointerId);
+    state.pointerStart = event.clientX;
+    applyDrag();
+  });
+  card.addEventListener("pointermove", (event) => {
+    if (state.pointerStart === null || state.animating) return;
+    state.dragX = event.clientX - state.pointerStart;
+    applyDrag();
+  });
+  const end = () => {
+    if (state.pointerStart === null) return;
+    if (Math.abs(state.dragX) > 95) {
+      swipe(state.dragX > 0 ? "right" : "left");
+    } else {
+      state.dragX = 0;
+      applyDrag();
+    }
+    state.pointerStart = null;
+  };
+  card.addEventListener("pointerup", end);
+  card.addEventListener("pointercancel", end);
+}
+
+async function trackCurrentView() {
+  if (!state.cards.length) return;
+  const current = state.cards[state.index % state.cards.length];
+  try {
+    await api.viewCard(current.id);
+  } catch {
+    /* viewing is best-effort */
+  }
+}
+
+function paintCreatePreview() {
+  const amount = Number(String(state.form.amount || "").replace(/\D/g, "")) || 0;
+  const purpose = state.form.purpose || "";
+  const category = state.form.category;
+  const previewCard = root.querySelector("[data-preview-card]");
+  const amountNode = root.querySelector("[data-preview-amount]");
+  const purposeNode = root.querySelector("[data-preview-purpose]");
+  const categoryNode = root.querySelector("[data-preview-category]");
+  const charCount = root.querySelector("[data-char-count]");
+  const submit = root.querySelector("[data-submit-create]");
+  if (previewCard) previewCard.style.background = cardColor(category, state.colors);
+  if (categoryNode) categoryNode.textContent = category;
+  if (amountNode) {
+    amountNode.textContent = amount ? money(amount) : "0 ₽";
+    amountNode.classList.toggle("placeholder-text", !amount);
+  }
+  if (purposeNode) {
+    purposeNode.textContent = purpose || "Здесь появится описание вашей цели";
+    purposeNode.classList.toggle("placeholder-text", !purpose);
+  }
+  if (charCount) charCount.textContent = `${purpose.length} / 160`;
+  if (submit) submit.disabled = !(amount > 0 && purpose.trim().length >= 10) || state.submitting;
+}
+
+root.addEventListener("click", async (event) => {
+  const nav = event.target.closest("[data-nav]");
+  if (nav) {
+    go(nav.dataset.nav);
+    return;
+  }
+
+  const swipeBtn = event.target.closest("[data-swipe]");
+  if (swipeBtn) {
+    swipe(swipeBtn.dataset.swipe);
+    return;
+  }
+
+  if (event.target.closest("[data-close-modal]")) {
+    if (event.target.closest("[data-modal-card]") && !event.target.closest("[data-close-modal]")) {
+      return;
+    }
+    if (event.target.classList.contains("requisites-modal")) return;
+    state.helped = null;
+    render();
+    return;
+  }
+
+  const copyBtn = event.target.closest("[data-copy]");
+  if (copyBtn) {
+    copyText(copyBtn.dataset.copy);
+    return;
+  }
+
+  const action = event.target.closest("[data-action]");
+  if (action?.dataset.action === "edit") {
+    state.editing = true;
+    render();
+  }
+  if (action?.dataset.action === "cancel") {
+    state.editing = false;
+    state.formError = "";
+    render();
+  }
+  if (action?.dataset.action === "reload") {
+    await loadFeed();
+  }
+});
+
+root.addEventListener("mousedown", (event) => {
+  if (event.target.classList.contains("modal-backdrop")) {
+    state.helped = null;
+    render();
+  }
+});
+
+root.addEventListener("change", async (event) => {
+  if (event.target.matches("[data-period]")) {
+    state.period = event.target.value;
+    await loadStats();
+    return;
+  }
+  if (event.target.closest("[data-form='create']") && event.target.name === "category") {
+    state.form.category = event.target.value;
+    paintCreatePreview();
+  }
+});
+
+root.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.target;
+  if (form.dataset.form === "profile") {
+    const payload = Object.fromEntries(new FormData(form).entries());
+    try {
+      state.submitting = true;
+      state.profile = await api.saveProfile(payload);
+      state.editing = false;
+      state.formError = "";
+      showToast("Профиль сохранён");
+    } catch (error) {
+      state.formError = error.message;
+      render();
+    } finally {
+      state.submitting = false;
+    }
+  }
+  if (form.dataset.form === "create") {
+    const data = Object.fromEntries(new FormData(form).entries());
+    const amount = Number(String(data.amount).replace(/\D/g, "")) || 0;
+    try {
+      state.submitting = true;
+      render();
+      await api.createCard({
+        amount,
+        purpose: data.purpose,
+        category: data.category,
+      });
+      state.form = { amount: "", purpose: "", category: data.category };
+      state.previewId = `PD-${Math.floor(10000 + Math.random() * 89999)}`;
+      state.formError = "";
+      await loadFeed();
+      state.profile = await api.profile();
+      state.submitting = false;
+      go("feed");
+      showToast("Карточка опубликована");
+    } catch (error) {
+      state.submitting = false;
+      state.formError = error.message;
+      render();
+    }
+  }
+});
+
+root.addEventListener("input", (event) => {
+  const form = event.target.closest("[data-form='create']");
+  if (!form) return;
+  const data = Object.fromEntries(new FormData(form).entries());
+  state.form = {
+    amount: data.amount,
+    purpose: String(data.purpose || "").slice(0, 160),
+    category: data.category,
+  };
+  if (event.target.name === "purpose" && event.target.value.length > 160) {
+    event.target.value = state.form.purpose;
+  }
+  paintCreatePreview();
+});
+
+window.addEventListener("hashchange", () => {
+  const next = screenFromHash();
+  if (next === state.screen) return;
+  state.screen = next;
+  state.formError = "";
+  render();
+  if (next === "stats") loadStats();
+});
+
+window.addEventListener("keydown", (event) => {
+  if (state.screen !== "feed" || state.helped) return;
+  const tag = document.activeElement?.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+  if (event.key === "ArrowLeft") swipe("left");
+  if (event.key === "ArrowRight") swipe("right");
+});
+
+async function loadFeed() {
+  state.loading = true;
+  state.error = "";
+  render();
+  try {
+    state.cards = await api.cards();
+    state.index = 0;
+  } catch (error) {
+    state.error = error.message;
+  } finally {
+    state.loading = false;
+    render();
+    trackCurrentView();
+  }
+}
+
+async function loadStats() {
+  state.statsLoading = true;
+  render();
+  try {
+    state.stats = await api.stats(state.period);
+    state.error = "";
+  } catch (error) {
+    if (!state.stats) state.error = error.message;
+    else showToast(error.message);
+  } finally {
+    state.statsLoading = false;
+    render();
+  }
+}
+
+async function boot() {
+  try {
+    const menu = await api.menu();
+    state.menu = menu.items?.length ? menu.items : DEFAULT_MENU;
+    state.banks = menu.banks || state.banks;
+    state.categories = menu.categories || state.categories;
+    state.colors = menu.colors || {};
+    state.profile = await api.profile();
+    state.form.category = state.categories[0];
+    await loadFeed();
+    if (state.screen === "stats") await loadStats();
+  } catch (error) {
+    state.loading = false;
+    state.error = error.message;
+    render();
+  }
+}
+
+boot();
