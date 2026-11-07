@@ -1,7 +1,7 @@
 from collections.abc import Generator
 from pathlib import Path
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
@@ -64,6 +64,22 @@ def init_db(database_url: str | None = None) -> None:
 
     configure_engine(database_url)
     assert engine is not None and SessionLocal is not None
+
+    # Lightweight forward migration for databases created by older Payder versions.
+    # create_all() creates missing tables but does not add columns to existing ones.
+    if engine.dialect.name == "sqlite":
+        inspector = inspect(engine)
+        if "users" in inspector.get_table_names():
+            user_columns = {column["name"] for column in inspector.get_columns("users")}
+            if "password_hash" not in user_columns:
+                with engine.begin() as connection:
+                    connection.execute(
+                        text(
+                            "ALTER TABLE users "
+                            "ADD COLUMN password_hash VARCHAR(256) NOT NULL DEFAULT ''"
+                        )
+                    )
+
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:

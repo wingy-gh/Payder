@@ -12,30 +12,22 @@ def get_by_username(db: Session, username: str) -> User | None:
     return db.scalar(select(User).where(User.username == username))
 
 
-def update_profile(
-    db: Session,
-    user: User,
-    *,
-    name: str,
-    phone: str,
-    bank: str,
-    requisites: str,
-) -> User:
-    user.name = name.strip()
-    user.phone = phone.strip()
-    user.bank = bank.strip()
-    user.requisites = requisites.strip()
-    user.initials = _initials(user.name)
+def create_user(db: Session, *, name: str, username: str, password_hash: str) -> User:
+    parts = [part for part in name.strip().split() if part]
+    initials = (parts[0][0] + (parts[1][0] if len(parts) > 1 else parts[0][1:2])).upper()
+    user = User(name=name.strip(), username=username.strip().lower(), password_hash=password_hash,
+                phone="", bank="", requisites="", initials=initials)
     db.add(user)
     db.commit()
     db.refresh(user)
     return user
 
 
-def _initials(name: str) -> str:
-    parts = [p for p in name.replace(".", " ").split() if p]
-    if not parts:
-        return "??"
-    if len(parts) == 1:
-        return parts[0][:2].upper()
-    return (parts[0][0] + parts[1][0]).upper()
+def update_profile(db: Session, user: User, *, name: str, phone: str, bank: str, requisites: str) -> User:
+    user.name, user.phone, user.bank, user.requisites = name.strip(), phone.strip(), bank.strip(), requisites.strip()
+    parts = [p for p in user.name.replace(".", " ").split() if p]
+    user.initials = (parts[0][0] + (parts[1][0] if len(parts) > 1 else parts[0][1:2])).upper()
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user

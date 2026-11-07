@@ -12,9 +12,10 @@ class User(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     username: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
-    phone: Mapped[str] = mapped_column(String(32), nullable=False)
-    bank: Mapped[str] = mapped_column(String(64), nullable=False)
-    requisites: Mapped[str] = mapped_column(String(64), nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(256), nullable=False)
+    phone: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    bank: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    requisites: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     initials: Mapped[str] = mapped_column(String(8), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

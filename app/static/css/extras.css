@@ -132,3 +132,19 @@
     overflow-x: auto;
   }
 }
+
+/* Account access */
+.auth-shell{min-height:100vh;display:grid;place-items:center;padding:28px;background:#f4f4ef}
+.auth-panel{width:min(100%,460px);padding:42px;background:#fff;border:1px solid #e8e8e1;border-radius:24px;box-shadow:0 18px 60px rgba(30,35,25,.07)}
+.auth-panel .logo{margin-bottom:38px}
+.auth-panel h1{font-size:34px;letter-spacing:-1.2px;margin:12px 0}
+.auth-description{color:#77796f;line-height:1.6;margin-bottom:26px}
+.auth-form{display:grid;gap:18px}
+.auth-form label{display:grid;gap:8px;font-weight:600;font-size:14px}
+.auth-form input{width:100%;padding:14px 15px;border:1px solid #dedfd6;border-radius:12px;background:#fbfbf8;font:inherit;outline:none}
+.auth-form input:focus{border-color:#7c9c54;box-shadow:0 0 0 3px rgba(124,156,84,.13)}
+.auth-switch{width:100%;margin-top:18px}
+.sidebar-logout{display:block;margin:12px auto 0}
+@media(max-width:600px){.auth-panel{padding:28px 22px}.auth-panel h1{font-size:29px}}
+
+.mobile-logout{font-size:12px;padding:6px 8px}

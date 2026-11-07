@@ -16,6 +16,9 @@ const DEFAULT_MENU = [
 
 const state = {
   screen: screenFromHash(),
+  authenticated: false,
+  authMode: "login",
+  authError: "",
   menu: DEFAULT_MENU,
   banks: ["Т-Банк", "Сбер", "Альфа-Банк", "ВТБ"],
   categories: ["Образование", "Техника", "Здоровье", "Доброе дело", "Творчество", "Другое"],
@@ -75,7 +78,26 @@ function renderModal() {
     </div>`;
 }
 
+function renderAuth() {
+  root.innerHTML = `
+    <main class="auth-shell"><section class="auth-panel">
+      <div class="logo"><span class="logo-mark">P</span><span>Payder</span></div>
+      <p class="eyebrow">СООБЩЕСТВО ВЗАИМОПОМОЩИ</p>
+      <h1>${state.authMode === "login" ? "С возвращением" : "Создать аккаунт"}</h1>
+      <p class="auth-description">${state.authMode === "login" ? "Войдите, чтобы смотреть карточки и делиться своими запросами." : "Зарегистрируйтесь, чтобы публиковать карточки и видеть запросы других участников."}</p>
+      <form data-form="auth" class="auth-form">
+        ${state.authMode === "register" ? `<label>Ваше имя<input name="name" autocomplete="name" minlength="2" maxlength="120" required placeholder="Имя Фамилия"></label>` : ""}
+        <label>Логин<input name="username" autocomplete="username" minlength="3" maxlength="64" required placeholder="Например, alex2026"></label>
+        <label>Пароль<input name="password" type="password" autocomplete="${state.authMode === "login" ? "current-password" : "new-password"}" minlength="8" maxlength="128" required placeholder="Не менее 8 символов"></label>
+        ${state.authError ? `<p class="field-error">${escapeHtml(state.authError)}</p>` : ""}
+        <button class="primary-button full" type="submit">${state.authMode === "login" ? "Войти" : "Зарегистрироваться"}</button>
+      </form>
+      <button class="text-button auth-switch" data-action="toggle-auth">${state.authMode === "login" ? "Нет аккаунта? Зарегистрироваться" : "Уже есть аккаунт? Войти"}</button>
+    </section></main>`;
+}
+
 function render() {
+  if (!state.authenticated) { renderAuth(); return; }
   const initials = state.profile?.initials || "АМ";
   const firstName = (state.profile?.name || "Алексей").split(" ")[0];
   const username = state.profile?.username || "alexmoroz";
@@ -139,11 +161,12 @@ function render() {
           </div>
           ${icon("arrow", 18)}
         </button>
+        <button class="text-button sidebar-logout" data-action="logout">Выйти из аккаунта</button>
       </aside>
       <main class="main">
         <header class="mobile-header">
           ${logo()}
-          <button class="mobile-avatar" data-nav="profile">${escapeHtml(initials)}</button>
+          <button class="mobile-avatar" data-nav="profile">${escapeHtml(initials)}</button><button class="text-button mobile-logout" data-action="logout">Выйти</button>
         </header>
         ${screenHtml}
       </main>
@@ -337,8 +360,19 @@ root.addEventListener("click", async (event) => {
     state.formError = "";
     render();
   }
-  if (action?.dataset.action === "reload") {
-    await loadFeed();
+  if (action?.dataset.action === "reload") await loadFeed();
+  if (action?.dataset.action === "toggle-auth") {
+    state.authMode = state.authMode === "login" ? "register" : "login";
+    state.authError = "";
+    renderAuth();
+  }
+  if (action?.dataset.action === "logout") {
+    await api.logout();
+    state.authenticated = false;
+    state.profile = null;
+    state.cards = [];
+    state.authMode = "login";
+    renderAuth();
   }
 });
 
@@ -364,6 +398,24 @@ root.addEventListener("change", async (event) => {
 root.addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.target;
+  if (form.dataset.form === "auth") {
+    const payload = Object.fromEntries(new FormData(form).entries());
+    try {
+      state.authError = "";
+      if (state.authMode === "register") await api.register(payload);
+      else await api.login(payload);
+      state.profile = await api.profile();
+      const menu = await api.menu();
+      state.menu = menu.items?.length ? menu.items : DEFAULT_MENU;
+      state.banks = menu.banks || state.banks;
+      state.categories = menu.categories || state.categories;
+      state.colors = menu.colors || {};
+      state.authenticated = true;
+      state.form.category = state.categories[0];
+      await loadFeed();
+    } catch (error) { state.authError = error.message; renderAuth(); }
+    return;
+  }
   if (form.dataset.form === "profile") {
     const payload = Object.fromEntries(new FormData(form).entries());
     try {
@@ -477,13 +529,14 @@ async function boot() {
     state.categories = menu.categories || state.categories;
     state.colors = menu.colors || {};
     state.profile = await api.profile();
+    state.authenticated = true;
     state.form.category = state.categories[0];
     await loadFeed();
     if (state.screen === "stats") await loadStats();
-  } catch (error) {
+  } catch {
     state.loading = false;
-    state.error = error.message;
-    render();
+    state.authenticated = false;
+    renderAuth();
   }
 }
 

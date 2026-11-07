@@ -24,6 +24,9 @@ async function request(path, options = {}) {
 
 export const api = {
   menu: () => request("/api/menu"),
+  register: (body) => request("/api/auth/register", { method: "POST", body: JSON.stringify(body) }),
+  login: (body) => request("/api/auth/login", { method: "POST", body: JSON.stringify(body) }),
+  logout: () => request("/api/auth/logout", { method: "POST" }),
   cards: () => request("/api/cards"),
   createCard: (body) => request("/api/cards", { method: "POST", body: JSON.stringify(body) }),
   viewCard: (id) => request(`/api/cards/${id}/view`, { method: "POST" }),

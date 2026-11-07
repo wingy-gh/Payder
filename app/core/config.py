@@ -17,7 +17,6 @@ class Settings(BaseSettings):
     database_url: str = f"sqlite:///{(ROOT_DIR / 'data' / 'payder.db').as_posix()}"
     admin_password: str = "change-me"
     secret_key: str = "replace-with-a-long-random-secret"
-    current_username: str = "alexmoroz"
 
 
 @lru_cache
