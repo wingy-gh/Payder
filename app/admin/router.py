@@ -1,27 +1,34 @@
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
-from app.core.config import get_settings
+from app.core.ratelimit import RateLimiter
+from app.core.security import ADMIN_TTL, create_admin_token, read_admin_token, verify_admin_password
 from app.database.crud import cards as cards_crud
 from app.database.db_core import get_db
 from app.database.models import Help, User
+from app.schemas.auth import AdminLoginIn
 
 router = APIRouter(tags=["admin"])
 
+_admin_login_by_ip = RateLimiter(limit=5, window=15 * 60)
+
 
 def require_admin(x_admin_token: str | None = Header(default=None, alias="X-Admin-Token")) -> None:
-    settings = get_settings()
-    if not x_admin_token or x_admin_token != settings.admin_password:
+    if not x_admin_token or not read_admin_token(x_admin_token):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Нет доступа")
 
 
 @router.post("/login")
-def login(payload: dict) -> dict:
-    password = str(payload.get("password", ""))
-    if password != get_settings().admin_password:
+def login(payload: AdminLoginIn, request: Request) -> dict:
+    ip = request.client.host if request.client else "unknown"
+    _admin_login_by_ip.check(ip)
+    if not verify_admin_password(payload.password):
+        _admin_login_by_ip.hit(ip)
         raise HTTPException(status_code=401, detail="Неверный пароль")
-    return {"token": get_settings().admin_password}
+    _admin_login_by_ip.reset(ip)
+    # Возвращаем подписанный токен с ограниченным сроком, а не сам пароль.
+    return {"token": create_admin_token(), "expires_in": ADMIN_TTL}
 
 
 @router.get("/cards")

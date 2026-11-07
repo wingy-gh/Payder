@@ -13,6 +13,8 @@ class User(Base):
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     username: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
     password_hash: Mapped[str] = mapped_column(String(256), nullable=False)
+    # Растёт при выходе: токены с прежней версией перестают действовать.
+    token_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     phone: Mapped[str] = mapped_column(String(32), nullable=False, default="")
     bank: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     requisites: Mapped[str] = mapped_column(String(64), nullable=False, default="")

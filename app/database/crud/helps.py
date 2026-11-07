@@ -38,6 +38,19 @@ def record_help(db: Session, *, card: Card, helper: User, amount: int = 0) -> He
     return help_row
 
 
+def has_helped(db: Session, *, card_id: int, helper_id: int) -> bool:
+    return db.scalar(
+        select(Help.id).where(Help.card_id == card_id, Help.helper_id == helper_id)
+    ) is not None
+
+
+def count_since(db: Session, helper_id: int, since: datetime) -> int:
+    """Сколько раз пользователь открыл реквизиты с момента `since`."""
+    return db.scalar(
+        select(func.count()).select_from(Help).where(Help.helper_id == helper_id, Help.created_at >= since)
+    ) or 0
+
+
 def helped_people_count(
     db: Session,
     helper_id: int,

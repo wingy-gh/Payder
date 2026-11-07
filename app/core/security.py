@@ -4,10 +4,13 @@ import hmac
 import json
 import secrets
 import time
+from functools import lru_cache
 
 from app.core.config import get_settings
 
 _ITERATIONS = 310_000
+SESSION_TTL = 60 * 60 * 24 * 14
+ADMIN_TTL = 60 * 60 * 8
 
 
 def hash_password(password: str) -> str:
@@ -29,24 +32,79 @@ def verify_password(password: str, encoded: str) -> bool:
         return False
 
 
-def create_session_token(user_id: int) -> str:
-    payload = json.dumps({"sub": user_id, "exp": int(time.time()) + 60 * 60 * 24 * 14}, separators=(",", ":")).encode()
-    body = base64.urlsafe_b64encode(payload).rstrip(b"=")
-    signature = hmac.new(get_settings().secret_key.encode(), body, hashlib.sha256).digest()
-    return body.decode() + "." + base64.urlsafe_b64encode(signature).rstrip(b"=").decode()
+@lru_cache
+def _dummy_hash() -> str:
+    return hash_password(secrets.token_urlsafe(16))
 
 
-def read_session_token(token: str) -> int | None:
+def dummy_verify(password: str) -> None:
+    """Тратит столько же времени, сколько реальная проверка пароля.
+
+    Вызывается, когда пользователя не существует, чтобы по времени ответа
+    нельзя было отличить «нет такого логина» от «неверный пароль».
+    """
+    verify_password(password, _dummy_hash())
+
+
+def verify_admin_password(candidate: str) -> bool:
+    expected = get_settings().admin_password
+    # Сравниваем хеши одинаковой длины, чтобы не светить длину пароля по времени.
+    return hmac.compare_digest(
+        hashlib.sha256(candidate.encode()).digest(),
+        hashlib.sha256(expected.encode()).digest(),
+    )
+
+
+def _b64(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
+
+def _unb64(text: str) -> bytes:
+    return base64.urlsafe_b64decode(text + "=" * (-len(text) % 4))
+
+
+def _sign(body: str) -> bytes:
+    return hmac.new(get_settings().secret_key.encode(), body.encode(), hashlib.sha256).digest()
+
+
+def _issue(claims: dict, ttl: int) -> str:
+    payload = {**claims, "exp": int(time.time()) + ttl}
+    body = _b64(json.dumps(payload, separators=(",", ":")).encode())
+    return f"{body}.{_b64(_sign(body))}"
+
+
+def _read(token: str) -> dict | None:
     try:
-        body_text, signature_text = token.split(".", 1)
-        body = body_text.encode()
-        signature = base64.urlsafe_b64decode(signature_text + "=" * (-len(signature_text) % 4))
-        expected = hmac.new(get_settings().secret_key.encode(), body, hashlib.sha256).digest()
-        if not hmac.compare_digest(signature, expected):
+        body, signature_text = token.split(".", 1)
+        if not hmac.compare_digest(_unb64(signature_text), _sign(body)):
             return None
-        payload = json.loads(base64.urlsafe_b64decode(body_text + "=" * (-len(body_text) % 4)))
-        if int(payload["exp"]) < int(time.time()):
+        payload = json.loads(_unb64(body))
+        if not isinstance(payload, dict) or int(payload["exp"]) < int(time.time()):
             return None
-        return int(payload["sub"])
+        return payload
     except (ValueError, KeyError, TypeError, json.JSONDecodeError):
         return None
+
+
+def create_session_token(user_id: int, version: int = 0) -> str:
+    return _issue({"sub": user_id, "ver": version, "typ": "user"}, SESSION_TTL)
+
+
+def read_session_token(token: str) -> tuple[int, int] | None:
+    """Возвращает (user_id, token_version) или None."""
+    payload = _read(token)
+    if payload is None or payload.get("typ", "user") != "user":
+        return None
+    try:
+        return int(payload["sub"]), int(payload.get("ver", 0))
+    except (KeyError, ValueError, TypeError):
+        return None
+
+
+def create_admin_token() -> str:
+    return _issue({"typ": "admin", "jti": secrets.token_urlsafe(8)}, ADMIN_TTL)
+
+
+def read_admin_token(token: str) -> bool:
+    payload = _read(token)
+    return payload is not None and payload.get("typ") == "admin"

@@ -1,4 +1,5 @@
-import random
+import re
+import secrets
 from datetime import datetime
 
 from sqlalchemy import func, select
@@ -31,9 +32,28 @@ def get_by_public_id(db: Session, public_id: str) -> Card | None:
     )
 
 
+# Идентификатор карточки нельзя угадать перебором: 32^10 вариантов (без похожих символов).
+_ID_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+_ID_LENGTH = 10
+_LEGACY_ID = re.compile(r"^PD-\d{5}$")
+
+
+def upgrade_legacy_public_ids(db: Session) -> int:
+    """Перевыпускает старые 5-значные идентификаторы (их можно перебрать). Возвращает число замен."""
+    rows = db.scalars(select(Card).where(Card.public_id.like("PD-_____"))).all()
+    changed = 0
+    for card in rows:
+        if _LEGACY_ID.match(card.public_id):
+            card.public_id = generate_public_id(db)
+            changed += 1
+    if changed:
+        db.commit()
+    return changed
+
+
 def generate_public_id(db: Session) -> str:
     for _ in range(40):
-        candidate = f"PD-{random.randint(10000, 99999)}"
+        candidate = "PD-" + "".join(secrets.choice(_ID_ALPHABET) for _ in range(_ID_LENGTH))
         exists = db.scalar(select(Card.id).where(Card.public_id == candidate))
         if exists is None:
             return candidate
