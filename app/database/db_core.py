@@ -79,10 +79,18 @@ def init_db(database_url: str | None = None) -> None:
                             "ADD COLUMN password_hash VARCHAR(256) NOT NULL DEFAULT ''"
                         )
                     )
+            if "token_version" not in user_columns:
+                with engine.begin() as connection:
+                    connection.execute(
+                        text("ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0")
+                    )
 
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
         seed_if_empty(db)
+        from app.database.crud.cards import upgrade_legacy_public_ids
+
+        upgrade_legacy_public_ids(db)
     finally:
         db.close()

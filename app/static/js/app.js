@@ -37,12 +37,22 @@ const state = {
   statsLoading: false,
   period: "month",
   form: { amount: "", purpose: "", category: "Образование" },
-  previewId: `PD-${Math.floor(10000 + Math.random() * 89999)}`,
+  previewId: makePreviewId(),
   loading: true,
   error: "",
   formError: "",
   submitting: false,
+  deleting: false,
+  deleteError: "",
+  authNote: "",
 };
+
+// Настоящий id карточки выдаёт сервер (PD- и 10 случайных символов); это только вид для превью.
+function makePreviewId() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const bytes = crypto.getRandomValues(new Uint8Array(10));
+  return "PD-" + Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join("");
+}
 
 function screenFromHash() {
   const id = window.location.hash.replace("#", "");
@@ -78,6 +88,27 @@ function renderModal() {
     </div>`;
 }
 
+function renderPrivacy() {
+  return `
+    <section class="panel privacy-panel" style="margin-top:16px">
+      <p class="eyebrow">ВАШИ ДАННЫЕ</p>
+      <p class="preview-note" style="text-align:left;margin:8px 0 14px">Можно скачать всё, что мы о вас храним, или удалить аккаунт вместе с карточками и историей. Удаление необратимо.</p>
+      ${
+        state.deleting
+          ? `<form data-form="delete" class="auth-form">
+              <label>Введите пароль для подтверждения
+                <input name="password" type="password" autocomplete="current-password" maxlength="128" required>
+              </label>
+              ${state.deleteError ? `<p class="field-error">${escapeHtml(state.deleteError)}</p>` : ""}
+              <button class="primary-button full" type="submit">Удалить аккаунт навсегда</button>
+              <button class="text-button" type="button" data-action="delete-cancel">Отмена</button>
+            </form>`
+          : `<button class="secondary-button" type="button" data-action="export-data">Скачать мои данные</button>
+             <button class="text-button" type="button" data-action="delete-start">Удалить аккаунт</button>`
+      }
+    </section>`;
+}
+
 function renderAuth() {
   root.innerHTML = `
     <main class="auth-shell"><section class="auth-panel">
@@ -85,6 +116,7 @@ function renderAuth() {
       <p class="eyebrow">СООБЩЕСТВО ВЗАИМОПОМОЩИ</p>
       <h1>${state.authMode === "login" ? "С возвращением" : "Создать аккаунт"}</h1>
       <p class="auth-description">${state.authMode === "login" ? "Войдите, чтобы смотреть карточки и делиться своими запросами." : "Зарегистрируйтесь, чтобы публиковать карточки и видеть запросы других участников."}</p>
+      ${state.authNote ? `<p class="auth-description">${escapeHtml(state.authNote)}</p>` : ""}
       <form data-form="auth" class="auth-form">
         ${state.authMode === "register" ? `<label>Ваше имя<input name="name" autocomplete="name" minlength="2" maxlength="120" required placeholder="Имя Фамилия"></label>` : ""}
         <label>Логин<input name="username" autocomplete="username" minlength="3" maxlength="64" required placeholder="Например, alex2026"></label>
@@ -118,7 +150,7 @@ function render() {
       editing: state.editing,
       banks: state.banks,
       error: state.formError,
-    });
+    }) + renderPrivacy();
   } else if (state.screen === "stats") {
     screenHtml = renderStats({
       stats: state.stats,
@@ -366,6 +398,30 @@ root.addEventListener("click", async (event) => {
     state.authError = "";
     renderAuth();
   }
+  if (action?.dataset.action === "delete-start") {
+    state.deleting = true;
+    state.deleteError = "";
+    render();
+  }
+  if (action?.dataset.action === "delete-cancel") {
+    state.deleting = false;
+    state.deleteError = "";
+    render();
+  }
+  if (action?.dataset.action === "export-data") {
+    try {
+      const data = await api.exportData();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "payder-data.json";
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      showToast(error.message);
+    }
+  }
   if (action?.dataset.action === "logout") {
     await api.logout();
     state.authenticated = false;
@@ -402,6 +458,7 @@ root.addEventListener("submit", async (event) => {
     const payload = Object.fromEntries(new FormData(form).entries());
     try {
       state.authError = "";
+      state.authNote = "";
       if (state.authMode === "register") await api.register(payload);
       else await api.login(payload);
       state.profile = await api.profile();
@@ -414,6 +471,27 @@ root.addEventListener("submit", async (event) => {
       state.form.category = state.categories[0];
       await loadFeed();
     } catch (error) { state.authError = error.message; renderAuth(); }
+    return;
+  }
+  if (form.dataset.form === "delete") {
+    const password = new FormData(form).get("password");
+    try {
+      await api.deleteAccount(password);
+      state.authenticated = false;
+      state.profile = null;
+      state.cards = [];
+      state.stats = null;
+      state.helped = null;
+      state.deleting = false;
+      state.deleteError = "";
+      state.authMode = "login";
+      state.authError = "";
+      state.authNote = "Аккаунт удалён вместе со всеми данными.";
+      renderAuth();
+    } catch (error) {
+      state.deleteError = error.message;
+      render();
+    }
     return;
   }
   if (form.dataset.form === "profile") {
@@ -443,7 +521,7 @@ root.addEventListener("submit", async (event) => {
         category: data.category,
       });
       state.form = { amount: "", purpose: "", category: data.category };
-      state.previewId = `PD-${Math.floor(10000 + Math.random() * 89999)}`;
+      state.previewId = makePreviewId();
       state.formError = "";
       await loadFeed();
       state.profile = await api.profile();

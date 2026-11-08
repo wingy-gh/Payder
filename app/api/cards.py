@@ -1,7 +1,11 @@
+from datetime import datetime, timedelta, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.core.config import get_settings
+from app.core.ratelimit import RateLimiter
 from app.database.crud import cards as cards_crud
 from app.database.crud import helps as helps_crud
 from app.database.db_core import get_db
@@ -10,6 +14,19 @@ from app.menu.items import CATEGORIES
 from app.schemas.card import CardCreate, CardPublic, HelpOut
 
 router = APIRouter(prefix="/cards", tags=["cards"])
+
+# Промахи по несуществующим id: перебор идентификаторов карточек блокируется.
+_probe_limiter = RateLimiter(limit=30, window=10 * 60)
+
+
+def _get_active_card(db: Session, public_id: str, user: User):
+    key = f"user:{user.id}"
+    _probe_limiter.check(key)
+    card = cards_crud.get_by_public_id(db, public_id)
+    if card is None or not card.is_active:
+        _probe_limiter.hit(key)
+        raise HTTPException(status_code=404, detail="Карточка не найдена")
+    return card
 
 
 def _public(card) -> CardPublic:
@@ -56,9 +73,7 @@ def view_card(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> None:
-    card = cards_crud.get_by_public_id(db, public_id)
-    if card is None or not card.is_active:
-        raise HTTPException(status_code=404, detail="Карточка не найдена")
+    card = _get_active_card(db, public_id, user)
     cards_crud.register_view(db, card, user.id)
 
 
@@ -68,11 +83,17 @@ def help_card(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> HelpOut:
-    card = cards_crud.get_by_public_id(db, public_id)
-    if card is None or not card.is_active:
-        raise HTTPException(status_code=404, detail="Карточка не найдена")
+    card = _get_active_card(db, public_id, user)
     if card.author_id == user.id:
         raise HTTPException(status_code=400, detail="Нельзя помочь своей карточке")
+    # Повторный показ уже открытых реквизитов лимит не расходует, новые карточки считаются за сутки.
+    if not helps_crud.has_helped(db, card_id=card.id, helper_id=user.id):
+        since = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=24)
+        if helps_crud.count_since(db, user.id, since) >= get_settings().help_daily_limit:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Достигнут суточный лимит открытия реквизитов. Попробуйте завтра",
+            )
     helps_crud.record_help(db, card=card, helper=user)
     return HelpOut(
         id=card.public_id,

@@ -1,12 +1,17 @@
-import { money } from "./icons.js";
+import { escapeHtml, money } from "./icons.js";
 
 const root = document.getElementById("admin-root");
 let token = sessionStorage.getItem("payder-admin") || "";
 
 function errorText(payload) {
   const detail = payload?.detail;
-  if (Array.isArray(detail)) return detail.map((item) => item.msg || item).join(", ");
+  if (Array.isArray(detail)) return detail.map((item) => String(item.msg || item).replace(/^Value error,\s*/i, "")).join(", ");
   return detail || "Ошибка";
+}
+
+function forgetToken() {
+  token = "";
+  sessionStorage.removeItem("payder-admin");
 }
 
 async function request(path, options = {}) {
@@ -19,7 +24,11 @@ async function request(path, options = {}) {
     },
   });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(errorText(payload));
+  if (!response.ok) {
+    // Токен админа живёт ограниченное время: при 401 забываем его и просим войти заново.
+    if (response.status === 401) forgetToken();
+    throw new Error(errorText(payload));
+  }
   return payload;
 }
 
@@ -32,7 +41,7 @@ function loginView(error = "") {
       <label>Пароль
         <input name="password" type="password" required autocomplete="current-password">
       </label>
-      ${error ? `<p class="field-error">${error}</p>` : ""}
+      ${error ? `<p class="field-error">${escapeHtml(error)}</p>` : ""}
       <button class="primary-button full">Войти</button>
     </form>`;
 }
@@ -52,6 +61,8 @@ async function dashboard() {
     request("/api/admin/users"),
     request("/api/admin/helps"),
   ]);
+  // Всё, что ввели пользователи (имя, логин, банк, категория…), экранируем:
+  // иначе чужое имя с HTML-кодом выполнится в браузере админа.
   root.innerHTML = `
     <p class="eyebrow">АДМИН-ПАНЕЛЬ</p>
     <div class="admin-toolbar screen-heading">
@@ -64,12 +75,12 @@ async function dashboard() {
       cards
         .map(
           (card) => `<tr>
-            <td>${card.public_id}</td>
+            <td>${escapeHtml(card.public_id)}</td>
             <td>${money(card.amount)}</td>
-            <td>${card.category}</td>
-            <td>${card.author}</td>
+            <td>${escapeHtml(card.category)}</td>
+            <td>${escapeHtml(card.author)}</td>
             <td><span class="${card.is_active ? "badge-on" : "badge-off"}">${card.is_active ? "активна" : "скрыта"}</span></td>
-            <td><button class="secondary-button" data-toggle="${card.id}">${card.is_active ? "Скрыть" : "Показать"}</button></td>
+            <td><button class="secondary-button" data-toggle="${escapeHtml(card.id)}">${card.is_active ? "Скрыть" : "Показать"}</button></td>
           </tr>`
         )
         .join(""),
@@ -78,13 +89,23 @@ async function dashboard() {
     ${table(
       "Пользователи",
       ["ID", "Имя", "Логин", "Банк"],
-      users.map((user) => `<tr><td>${user.id}</td><td>${user.name}</td><td>@${user.username}</td><td>${user.bank}</td></tr>`).join(""),
+      users
+        .map(
+          (user) =>
+            `<tr><td>${escapeHtml(user.id)}</td><td>${escapeHtml(user.name)}</td><td>@${escapeHtml(user.username)}</td><td>${escapeHtml(user.bank)}</td></tr>`
+        )
+        .join(""),
       "Пользователей нет"
     )}
     ${table(
       "Помощь",
       ["ID", "Карточка", "Кто помог", "Сумма"],
-      helps.map((item) => `<tr><td>${item.id}</td><td>${item.card}</td><td>${item.helper}</td><td>${money(item.amount)}</td></tr>`).join(""),
+      helps
+        .map(
+          (item) =>
+            `<tr><td>${escapeHtml(item.id)}</td><td>${escapeHtml(item.card)}</td><td>${escapeHtml(item.helper)}</td><td>${money(item.amount)}</td></tr>`
+        )
+        .join(""),
       "Записей о помощи нет"
     )}`;
 }
@@ -109,15 +130,20 @@ root.addEventListener("submit", async (event) => {
 
 root.addEventListener("click", async (event) => {
   if (event.target.id === "logout") {
-    token = "";
-    sessionStorage.removeItem("payder-admin");
+    forgetToken();
     loginView();
     return;
   }
   const toggle = event.target.closest("[data-toggle]");
   if (toggle) {
-    await request(`/api/admin/cards/${toggle.dataset.toggle}/toggle`, { method: "POST" });
-    await dashboard();
+    try {
+      await request(`/api/admin/cards/${encodeURIComponent(toggle.dataset.toggle)}/toggle`, { method: "POST" });
+      await dashboard();
+    } catch (error) {
+      // 401 (токен истёк): возвращаемся на экран входа. Другие ошибки просто показываем.
+      if (!token) loginView(error.message);
+      else window.alert(error.message);
+    }
   }
 });
 
@@ -125,4 +151,4 @@ if (token) {
   dashboard().catch(() => loginView());
 } else {
   loginView();
-}
+} 

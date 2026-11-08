@@ -8,3 +8,6 @@ data/
 _design_ref/
 .idea/
 .vscode/
+
+# GitHub Codespaces runtime log
+.codespaces.log

@@ -12,6 +12,12 @@ def get_by_username(db: Session, username: str) -> User | None:
     return db.scalar(select(User).where(User.username == username))
 
 
+def bump_token_version(db: Session, user: User) -> None:
+    user.token_version = (user.token_version or 0) + 1
+    db.add(user)
+    db.commit()
+
+
 def create_user(db: Session, *, name: str, username: str, password_hash: str) -> User:
     parts = [part for part in name.strip().split() if part]
     initials = (parts[0][0] + (parts[1][0] if len(parts) > 1 else parts[0][1:2])).upper()
