@@ -1,6 +1,6 @@
 import { escapeHtml, icon } from "../icons.js";
 
-export function renderProfile({ profile, editing, banks, error }) {
+export function renderProfile({ profile, editing, banks, error, extra = "" }) {
   if (!profile) {
     return `<section class="screen content-screen"><div class="loading-state"><h2>Загружаем профиль</h2></div></section>`;
   }
@@ -66,5 +66,6 @@ export function renderProfile({ profile, editing, banks, error }) {
           }
         </form>
       </div>
+      ${extra}
     </section>`;
 }

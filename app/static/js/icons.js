@@ -9,6 +9,9 @@ const PATHS = {
   edit: `<path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"></path>`,
   arrow: `<path d="m9 18 6-6-6-6"></path>`,
   check: `<path d="m5 12 4 4L19 6"></path>`,
+  back: `<path d="m15 18-6-6 6-6"></path>`,
+  doc: `<path d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"></path><path d="M14 3v5h5M9 13h6M9 17h4"></path>`,
+  "check-doc": `<path d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"></path><path d="M14 3v5h5"></path><path d="m9 14 2.2 2.2L15.5 12"></path>`,
   wallet: `<path d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14H6a2 2 0 0 1-2-2Z"></path><path d="M4 8h16M15 13h5"></path>`,
 };
 

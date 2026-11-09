@@ -10,6 +10,8 @@ class RegisterIn(BaseModel):
     name: str = Field(min_length=2, max_length=120)
     username: str = Field(min_length=3, max_length=64, pattern=r"^[a-zA-Z0-9_.-]+$")
     password: str = Field(min_length=8, max_length=128)
+    # Версия документов, которую пользователь принял на стартовом экране.
+    consent_version: str | None = Field(default=None, max_length=16)
 
     @model_validator(mode="after")
     def _check_password(self) -> "RegisterIn":

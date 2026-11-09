@@ -71,6 +71,18 @@ class CardView(Base):
     card: Mapped[Card] = relationship(back_populates="views")
 
 
+class Consent(Base):
+    """Факт принятия документа: какой документ, какой версии и когда."""
+
+    __tablename__ = "consents"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    document: Mapped[str] = mapped_column(String(32), nullable=False)
+    version: Mapped[str] = mapped_column(String(16), nullable=False)
+    accepted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class Activity(Base):
     __tablename__ = "activities"
 

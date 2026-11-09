@@ -20,6 +20,10 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
         if get_settings().cookie_secure or request.url.scheme == "https":
             headers.setdefault("Strict-Transport-Security", "max-age=15552000")
+        # Статика (JS/CSS) всегда перепроверяется: иначе после обновления браузер
+        # может показывать старую версию сайта.
+        if request.url.path == "/" or request.url.path.startswith("/static/"):
+            headers.setdefault("Cache-Control", "no-cache")
         # Ответы API содержат личные данные и реквизиты: не даём браузеру и прокси их кэшировать.
         if headers.get("content-type", "").startswith("application/json"):
             headers.setdefault("Cache-Control", "no-store")

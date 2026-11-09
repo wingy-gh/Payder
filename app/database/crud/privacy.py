@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
-from app.database.models import Activity, Card, CardView, Help, User
+from app.database.models import Activity, Card, CardView, Consent, Help, User
 
 DELETED_USER_TITLE = "Вы помогли удалённому пользователю"
 
@@ -30,6 +30,7 @@ def export_user_data(db: Session, user: User) -> dict:
         .order_by(CardView.id)
     ).all()
     activities = db.scalars(select(Activity).where(Activity.user_id == user.id).order_by(Activity.id)).all()
+    consents = db.scalars(select(Consent).where(Consent.user_id == user.id).order_by(Consent.id)).all()
 
     return {
         "exported_at": datetime.now(timezone.utc),
@@ -55,6 +56,10 @@ def export_user_data(db: Session, user: User) -> dict:
         "helps_given": [
             {"card": public_id, "amount": help_row.amount, "created_at": help_row.created_at}
             for help_row, public_id in helps_given
+        ],
+        "consents": [
+            {"document": item.document, "version": item.version, "accepted_at": item.accepted_at}
+            for item in consents
         ],
         "helps_received_count": int(helps_received),
         "views_made": [{"card": public_id, "created_at": created_at} for created_at, public_id in views_made],

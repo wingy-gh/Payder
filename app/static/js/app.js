@@ -4,6 +4,8 @@ import { cardColor, renderCreate } from "./components/create.js";
 import { renderFeed } from "./components/feed.js";
 import { renderProfile } from "./components/profile.js";
 import { renderStats } from "./components/stats.js";
+import { renderDocsPanel, renderGate, renderLegalLinks, renderLegalReader } from "./components/legal.js";
+import { LEGAL_VERSION } from "./legal.js";
 
 const root = document.getElementById("root");
 const SCREENS = ["feed", "profile", "stats", "create"];
@@ -14,7 +16,33 @@ const DEFAULT_MENU = [
   { id: "create", label: "Создать", icon: "plus" },
 ];
 
+const CONSENT_KEY = "payder_consent";
+
+// Принятие документов в этом браузере: действует, пока версия документов не изменилась.
+function readConsent() {
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(CONSENT_KEY) || "null");
+    return saved && saved.version === LEGAL_VERSION ? saved : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveConsent() {
+  state.consent = { version: LEGAL_VERSION, acceptedAt: new Date().toISOString() };
+  try {
+    window.localStorage.setItem(CONSENT_KEY, JSON.stringify(state.consent));
+  } catch {
+    /* без localStorage стартовый экран просто покажется снова */
+  }
+}
+
 const state = {
+  consent: readConsent(),
+  gateOpen: false,
+  gate: { terms: false, privacy: false },
+  gateError: "",
+  legalDoc: null,
   screen: screenFromHash(),
   authenticated: false,
   authMode: "login",
@@ -125,10 +153,67 @@ function renderAuth() {
         <button class="primary-button full" type="submit">${state.authMode === "login" ? "Войти" : "Зарегистрироваться"}</button>
       </form>
       <button class="text-button auth-switch" data-action="toggle-auth">${state.authMode === "login" ? "Нет аккаунта? Зарегистрироваться" : "Уже есть аккаунт? Войти"}</button>
-    </section></main>`;
+      ${renderLegalLinks()}
+    </section></main>
+    ${state.legalDoc ? renderLegalReader(state.legalDoc) : ""}`;
+}
+
+function renderGateScreen() {
+  root.innerHTML = renderGate({
+    gate: state.gate,
+    legalDoc: state.legalDoc,
+    error: state.gateError,
+    account: state.authenticated,
+  });
+}
+
+// Перерисовывает текущий экран (стартовый, вход или основное приложение).
+function rerender() {
+  if (state.gateOpen) renderGateScreen();
+  else if (!state.authenticated) renderAuth();
+  else render();
+}
+
+// Куда попадает человек, не вошедший в аккаунт: на стартовый экран или сразу к входу.
+function showEntry() {
+  state.gateOpen = !state.consent;
+  if (state.gateOpen) {
+    state.gate = { terms: false, privacy: false };
+    state.gateError = "";
+  }
+  rerender();
+}
+
+function setLegalDoc(id) {
+  state.legalDoc = id;
+  document.body.style.overflow = id ? "hidden" : "";
+  rerender();
+}
+
+async function acceptGate() {
+  if (!(state.gate.terms && state.gate.privacy)) return;
+  state.gateError = "";
+  if (state.authenticated) {
+    try {
+      state.profile = await api.acceptDocuments(LEGAL_VERSION);
+    } catch (error) {
+      state.gateError = error.message;
+      renderGateScreen();
+      return;
+    }
+    saveConsent();
+    state.gateOpen = false;
+    await loadFeed();
+    if (state.screen === "stats") await loadStats();
+    return;
+  }
+  saveConsent();
+  state.gateOpen = false;
+  renderAuth();
 }
 
 function render() {
+  if (state.gateOpen) { renderGateScreen(); return; }
   if (!state.authenticated) { renderAuth(); return; }
   const initials = state.profile?.initials || "АМ";
   const firstName = (state.profile?.name || "Алексей").split(" ")[0];
@@ -150,7 +235,8 @@ function render() {
       editing: state.editing,
       banks: state.banks,
       error: state.formError,
-    }) + renderPrivacy();
+      extra: renderDocsPanel() + renderPrivacy(),
+    });
   } else if (state.screen === "stats") {
     screenHtml = renderStats({
       stats: state.stats,
@@ -214,6 +300,7 @@ function render() {
           .join("")}
       </nav>
       ${renderModal()}
+      ${state.legalDoc ? renderLegalReader(state.legalDoc) : ""}
       ${state.toast ? `<div class="toast">${icon("check", 18)}${escapeHtml(state.toast)}</div>` : ""}
     </div>`;
 
@@ -354,6 +441,20 @@ function paintCreatePreview() {
 }
 
 root.addEventListener("click", async (event) => {
+  const legalOpen = event.target.closest("[data-legal]");
+  if (legalOpen) {
+    setLegalDoc(legalOpen.dataset.legal);
+    return;
+  }
+  if (event.target.closest("[data-action='legal-close']") || event.target.matches("[data-legal-backdrop]")) {
+    setLegalDoc(null);
+    return;
+  }
+  if (event.target.closest("[data-action='gate-continue']")) {
+    await acceptGate();
+    return;
+  }
+
   const nav = event.target.closest("[data-nav]");
   if (nav) {
     go(nav.dataset.nav);
@@ -428,7 +529,7 @@ root.addEventListener("click", async (event) => {
     state.profile = null;
     state.cards = [];
     state.authMode = "login";
-    renderAuth();
+    showEntry();
   }
 });
 
@@ -440,6 +541,15 @@ root.addEventListener("mousedown", (event) => {
 });
 
 root.addEventListener("change", async (event) => {
+  if (event.target.matches("[data-gate]")) {
+    state.gate[event.target.dataset.gate] = event.target.checked;
+    const ready = state.gate.terms && state.gate.privacy;
+    const button = root.querySelector("[data-action='gate-continue']");
+    const hint = root.querySelector("[data-gate-hint]");
+    if (button) button.disabled = !ready;
+    if (hint) hint.hidden = ready;
+    return;
+  }
   if (event.target.matches("[data-period]")) {
     state.period = event.target.value;
     await loadStats();
@@ -459,7 +569,7 @@ root.addEventListener("submit", async (event) => {
     try {
       state.authError = "";
       state.authNote = "";
-      if (state.authMode === "register") await api.register(payload);
+      if (state.authMode === "register") await api.register({ ...payload, consent_version: state.consent?.version });
       else await api.login(payload);
       state.profile = await api.profile();
       const menu = await api.menu();
@@ -469,6 +579,12 @@ root.addEventListener("submit", async (event) => {
       state.colors = menu.colors || {};
       state.authenticated = true;
       state.form.category = state.categories[0];
+      if (!state.profile.legal_accepted) {
+        state.gate = { terms: false, privacy: false };
+        state.gateOpen = true;
+        render();
+        return;
+      }
       await loadFeed();
     } catch (error) { state.authError = error.message; renderAuth(); }
     return;
@@ -487,7 +603,7 @@ root.addEventListener("submit", async (event) => {
       state.authMode = "login";
       state.authError = "";
       state.authNote = "Аккаунт удалён вместе со всеми данными.";
-      renderAuth();
+      showEntry();
     } catch (error) {
       state.deleteError = error.message;
       render();
@@ -561,6 +677,11 @@ window.addEventListener("hashchange", () => {
 });
 
 window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && state.legalDoc) {
+    setLegalDoc(null);
+    return;
+  }
+  if (state.gateOpen || state.legalDoc) return;
   if (state.screen !== "feed" || state.helped) return;
   const tag = document.activeElement?.tagName;
   if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
@@ -609,12 +730,18 @@ async function boot() {
     state.profile = await api.profile();
     state.authenticated = true;
     state.form.category = state.categories[0];
+    if (!state.profile.legal_accepted) {
+      state.loading = false;
+      state.gateOpen = true;
+      render();
+      return;
+    }
     await loadFeed();
     if (state.screen === "stats") await loadStats();
   } catch {
     state.loading = false;
     state.authenticated = false;
-    renderAuth();
+    showEntry();
   }
 }
 

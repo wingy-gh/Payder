@@ -12,6 +12,11 @@ class ProfileOut(BaseModel):
     initials: str
     helped: int
     cards: int
+    legal_accepted: bool = True
+
+
+class ConsentIn(BaseModel):
+    version: str = Field(max_length=16)
 
 
 class ProfileUpdate(BaseModel):

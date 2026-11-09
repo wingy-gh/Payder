@@ -4,6 +4,8 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.ratelimit import RateLimiter
 from app.core.security import SESSION_TTL, create_session_token, dummy_verify, hash_password, read_session_token, verify_password
+from app.core.legal import LEGAL_VERSION
+from app.database.crud import consents as consents_crud
 from app.database.crud import users as users_crud
 from app.database.db_core import get_db
 from app.database.models import User
@@ -42,10 +44,14 @@ def register(payload: RegisterIn, request: Request, response: Response, db: Sess
     _register_by_ip.check(ip)
     _register_by_ip.hit(ip)
     username = payload.username.strip().lower()
+    if payload.consent_version is not None and payload.consent_version != LEGAL_VERSION:
+        raise HTTPException(status_code=409, detail="Документы обновились: обновите страницу и примите их заново")
     if users_crud.get_by_username(db, username):
         raise HTTPException(status_code=409, detail="Это имя пользователя уже занято")
     user = users_crud.create_user(db, name=payload.name, username=username,
                                   password_hash=hash_password(payload.password))
+    if payload.consent_version is not None:
+        consents_crud.record_current(db, user)
     _set_session(response, user, request)
     return {"id": user.id, "name": user.name, "username": user.username}
 

@@ -38,6 +38,7 @@ export const api = {
   helpCard: (id) => request(`/api/cards/${encodeURIComponent(id)}/help`, { method: "POST" }),
   profile: () => request("/api/profile"),
   saveProfile: (body) => request("/api/profile", { method: "PUT", body: JSON.stringify(body) }),
+  acceptDocuments: (version) => request("/api/profile/consent", { method: "POST", body: JSON.stringify({ version }) }),
   exportData: () => request("/api/profile/export"),
   deleteAccount: (password) => request("/api/profile", { method: "DELETE", body: JSON.stringify({ password }) }),
   stats: (period = "month") => request(`/api/stats?period=${encodeURIComponent(period)}`),

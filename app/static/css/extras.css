@@ -148,3 +148,73 @@
 @media(max-width:600px){.auth-panel{padding:28px 22px}.auth-panel h1{font-size:29px}}
 
 .mobile-logout{font-size:12px;padding:6px 8px}
+
+/* Документы: стартовый экран и читалка */
+.gate-panel{width:min(100%,480px)}
+.gate-head{text-align:center;margin-bottom:28px}
+.gate-head .logo{justify-content:center;margin:0 0 12px!important}
+.gate-panel h1{text-align:center;font-size:30px!important;margin:18px 0 8px!important}
+.gate-panel .auth-description{text-align:center;margin-bottom:22px}
+.gate-docs{display:grid;gap:10px}
+.gate-doc{display:grid;grid-template-columns:40px 1fr auto;align-items:center;gap:14px;width:100%;padding:13px 16px 13px 14px;text-align:left;background:#fbfbf8;border:1px solid #e8e8e1;border-radius:16px;transition:border-color .16s,background .16s,transform .16s}
+.gate-doc:hover{background:#fff;border-color:#cfd1c8}
+.gate-doc:active{transform:scale(.99)}
+.gate-doc-icon{display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:#eef9d3;color:#3d6418}
+.gate-doc-title{font-size:14px;font-weight:700;line-height:1.35}
+.gate-doc-arrow{color:#9a9e95;display:grid}
+.docs-panel-list{margin-top:12px}
+.gate-note{margin:16px 2px 18px;color:#969a90;font-size:12px;line-height:1.55}
+.gate-checks{display:grid;padding:4px 16px;background:#fbfbf8;border:1px solid #e8e8e1;border-radius:16px}
+.gate-check{position:relative;display:flex;align-items:flex-start;gap:12px;margin:0;padding:13px 0;color:#1d211b;font-size:13.5px;font-weight:600;line-height:1.45;cursor:pointer}
+.gate-check+.gate-check{border-top:1px solid #ecece7}
+.gate-check input{position:absolute;opacity:0;width:22px;height:22px;margin:0;cursor:pointer}
+.gate-box{flex:none;display:grid;place-items:center;width:22px;height:22px;margin-top:1px;color:transparent;background:#fff;border:1.5px solid #c9cbc1;border-radius:7px;transition:background .16s,border-color .16s,color .16s}
+.gate-check input:checked+.gate-box{color:#20241d;background:#c7f36b;border-color:#a7d44a}
+.gate-check input:focus-visible+.gate-box{outline:3px solid #77993147;outline-offset:2px}
+.gate-panel .gate-continue{margin-top:18px;padding:15px 18px;font-size:13px}
+.gate-panel .field-error{margin-top:12px;font-size:12px}
+.gate-hint{margin-top:14px;text-align:center;color:#969a90;font-size:12px}
+.gate-hint[hidden]{display:none}
+.legal-links{display:flex;flex-wrap:wrap;justify-content:center;gap:2px 10px;margin-top:20px;padding-top:18px;border-top:1px solid #ecece7}
+.legal-links .text-button{font-size:11px;padding:6px 6px}
+.legal-links .text-button:hover{color:#1d211b;text-decoration:underline}
+
+.legal-overlay{position:fixed;inset:0;z-index:70;display:grid;place-items:center;padding:20px;background:#191c1780;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);animation:.18s fade-in}
+.legal-sheet{display:flex;flex-direction:column;width:min(100%,720px);max-height:min(90vh,860px);overflow:hidden;background:#fff;border-radius:26px;box-shadow:0 30px 90px #12141047;animation:.26s cubic-bezier(.2,.8,.2,1) modal-in}
+.legal-head{display:flex;align-items:flex-start;gap:14px;padding:22px 28px 18px;border-bottom:1px solid #ecece7}
+.legal-back{flex:none;display:grid;place-items:center;width:38px;height:38px;margin-top:2px;color:#70746b;background:#f2f3ee;border:0;border-radius:50%;transition:background .16s}
+.legal-back:hover{background:#e8e9e2}
+.legal-head h2{margin:6px 0 0;font-size:22px;line-height:1.2;letter-spacing:-.6px}
+.legal-version{display:inline-block;margin-top:9px;padding:3px 9px;color:#3d6418;background:#eef9d3;border-radius:999px;font-size:10px;font-weight:800}
+.legal-scroll{flex:1;overflow-y:auto;padding:6px 28px 14px;overscroll-behavior:contain}
+.legal-section{padding-top:20px}
+.legal-section h3{display:flex;align-items:baseline;gap:10px;margin:0 0 12px;font-size:15px;font-weight:800;letter-spacing:-.2px}
+.legal-sec-num{color:#7c9c54;font-variant-numeric:tabular-nums}
+.legal-clause{display:grid;grid-template-columns:38px 1fr;gap:6px;margin:0 0 9px;color:#40443b;font-size:13px;line-height:1.65}
+.legal-num{color:#a0a499;font-weight:700;font-variant-numeric:tabular-nums}
+.legal-lead{margin:0 0 9px;padding-left:44px;color:#40443b;font-size:13px;line-height:1.65}
+.legal-note{color:#6f7367;font-style:normal}
+.legal-label{margin:12px 0 7px 44px;font-size:12px;font-weight:800;letter-spacing:.2px;color:#1d211b}
+.legal-list{display:grid;gap:5px;margin:0 0 12px 44px;padding:0;list-style:none}
+.legal-list li{position:relative;padding-left:17px;color:#40443b;font-size:13px;line-height:1.55}
+.legal-list li::before{content:"";position:absolute;left:1px;top:.62em;width:6px;height:6px;background:#c7f36b;border:1px solid #a7d44a;border-radius:50%}
+.legal-foot{padding:16px 28px 22px;border-top:1px solid #ecece7}
+.legal-foot .primary-button{padding:14px 18px;font-size:13px}
+@media(max-width:600px){
+  .gate-panel h1{font-size:26px!important}
+  .legal-overlay{align-items:end;padding:0}
+  .legal-sheet{width:100%;max-height:93vh;border-radius:24px 24px 0 0}
+  .legal-head{padding:18px 20px 14px}
+  .legal-head h2{font-size:19px}
+  .legal-scroll{padding:4px 20px 12px}
+  .legal-foot{padding:14px 20px calc(18px + env(safe-area-inset-bottom,0px))}
+  .legal-clause{grid-template-columns:32px 1fr}
+  .legal-lead,.legal-label,.legal-list{margin-left:0;padding-left:0}
+  .legal-lead,.legal-label{padding-left:38px}
+  .legal-list{margin-left:38px}
+}
+
+/* Блоки под формой профиля («Документы», «Ваши данные») */
+.privacy-panel{margin-top:22px!important;padding:24px 26px}
+.privacy-panel .secondary-button{margin-right:6px}
+.docs-panel-list{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
