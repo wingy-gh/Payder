@@ -8,7 +8,9 @@ import { renderDocsPanel, renderGate, renderLegalLinks, renderLegalReader } from
 import { LEGAL_VERSION } from "./legal.js";
 
 const root = document.getElementById("root");
-const SCREENS = ["feed", "profile", "stats", "create"];
+const SCREENS = ["feed", "profile", "stats", "create", "chats"];
+const CHATS_TAB = { id: "chats", label: "Чаты", icon: "chat" };
+const MOBILE_NAV_ORDER = ["feed", "stats", "create", "chats", "profile"];
 const DEFAULT_MENU = [
   { id: "feed", label: "Карточки", icon: "cards" },
   { id: "profile", label: "Профиль", icon: "user" },
@@ -218,6 +220,8 @@ function render() {
   const initials = state.profile?.initials || "АМ";
   const firstName = (state.profile?.name || "Алексей").split(" ")[0];
   const username = state.profile?.username || "alexmoroz";
+  const menu = [...state.menu, CHATS_TAB];
+  const mobileMenu = MOBILE_NAV_ORDER.map((id) => menu.find((item) => item.id === id)).filter(Boolean);
   let screenHtml = "";
   if (state.screen === "feed") {
     screenHtml = renderFeed({
@@ -244,6 +248,12 @@ function render() {
       loading: state.statsLoading,
       error: state.error,
     });
+  } else if (state.screen === "chats") {
+    screenHtml = `
+      <section class="screen content-screen">
+        <div class="screen-heading"><h1>Чаты</h1></div>
+        <div class="empty-state"><h2>Здесь будут ваши переписки</h2></div>
+      </section>`;
   } else {
     screenHtml = renderCreate({
       form: state.form,
@@ -261,7 +271,7 @@ function render() {
       <aside class="sidebar">
         ${logo()}
         <nav class="side-nav" aria-label="Основная навигация">
-          ${state.menu
+          ${menu
             .map(
               (item) => `
             <button class="nav-item ${state.screen === item.id ? "active" : ""}" data-nav="${item.id}">
@@ -284,15 +294,17 @@ function render() {
       <main class="main">
         <header class="mobile-header">
           ${logo()}
-          <button class="mobile-avatar" data-nav="profile">${escapeHtml(initials)}</button><button class="text-button mobile-logout" data-action="logout">Выйти</button>
+          <button type="button" class="mobile-logout" data-action="logout" aria-label="Выйти из аккаунта">
+            ${icon("logout")}
+          </button>
         </header>
         ${screenHtml}
       </main>
       <nav class="bottom-nav" aria-label="Мобильная навигация">
-        ${state.menu
+        ${mobileMenu
           .map(
             (item) => `
-          <button class="${state.screen === item.id ? "active" : ""}" data-nav="${item.id}" aria-label="${item.label}">
+          <button type="button" class="${state.screen === item.id ? "active" : ""}" data-nav="${item.id}" ${state.screen === item.id ? 'aria-current="page"' : ""}>
             ${icon(item.icon, 21)}
             <span>${item.label}</span>
           </button>`
