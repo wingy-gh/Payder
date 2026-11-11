@@ -147,8 +147,6 @@
 .sidebar-logout{display:block;margin:12px auto 0}
 @media(max-width:600px){.auth-panel{padding:28px 22px}.auth-panel h1{font-size:29px}}
 
-.mobile-logout{font-size:12px;padding:6px 8px}
-
 /* Документы: стартовый экран и читалка */
 .gate-panel{width:min(100%,480px)}
 .gate-head{text-align:center;margin-bottom:28px}
@@ -218,3 +216,84 @@
 .privacy-panel{margin-top:22px!important;padding:24px 26px}
 .privacy-panel .secondary-button{margin-right:6px}
 .docs-panel-list{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+
+.mobile-logout {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  color: #a33e3e;
+}
+
+@media (width <= 700px) {
+  .app-shell {
+    --mobile-nav-bottom: max(12px, calc(env(safe-area-inset-bottom, 0px) + 8px));
+    --mobile-nav-height: 64px;
+  }
+
+  .bottom-nav {
+    inset: auto 0 var(--mobile-nav-bottom);
+    width: min(calc(100% - 32px), 440px);
+    height: var(--mobile-nav-height);
+    margin-inline: auto;
+    padding: 5px;
+    border: 1px solid #dedfd8;
+    border-radius: 999px;
+    background: #fafaf7;
+    box-shadow: 0 8px 24px #2529211a;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .bottom-nav button {
+    min-width: 0;
+    border: 1px solid transparent;
+    border-radius: inherit;
+    color: #60665c;
+    font-size: clamp(9px, 2.7vw, 11px);
+    line-height: 1.1;
+  }
+
+  .bottom-nav button.active {
+    border-color: #c7e68a;
+    background: #d9f99d;
+    color: #252921;
+  }
+
+  .bottom-nav button.active svg {
+    filter: none;
+  }
+
+  .bottom-nav button[data-nav="create"] {
+    place-self: center;
+    width: 52px;
+    height: 52px;
+    gap: 0;
+    border: 2px solid #799b31;
+    background: #c7f36b;
+    color: #252921;
+    font-size: 9px;
+  }
+
+  .bottom-nav button[data-nav="create"].active {
+    background: #b8e55d;
+  }
+
+  .bottom-nav button[data-nav="create"] svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .bottom-nav button:focus-visible {
+    outline: 2px solid #526c32;
+    outline-offset: -3px;
+  }
+
+  .screen {
+    padding-bottom: max(93px, calc(var(--mobile-nav-bottom) + var(--mobile-nav-height) + 16px));
+  }
+
+  .toast {
+    bottom: max(85px, calc(var(--mobile-nav-bottom) + var(--mobile-nav-height) + 8px));
+  }
+}
