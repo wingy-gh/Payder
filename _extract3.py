@@ -1,5 +1,0 @@
-js = open("_design_ref/app.js", "r", encoding="utf-8", errors="replace").read()
-i = js.find("/workspaces/default/.publishing/src/App.tsx")
-print("idx", i, "len", len(js)-i)
-open("_design_ref/app_tail.js", "w", encoding="utf-8").write(js[i:])
-print("wrote", len(js)-i)
